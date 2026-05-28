@@ -1,0 +1,1598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>LIFESPANS — Terminal v5.6</title>
+<meta name="description" content="A hyper-realistic, AI-driven life simulator. Live an entire life, month by month."/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=VT323&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#060c06;--bg2:#0a120a;
+  --green:#00ff41;--gdim:#00882a;--gbright:#80ff99;--gmid:#00cc35;
+  --amber:#ffb300;--red:#ff3b3b;--blue:#00cfff;
+  --border:rgba(0,136,42,0.6);
+  --mono:'Share Tech Mono','Courier New',monospace;
+  --vt:'VT323',monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--green);font-family:var(--mono);height:100%;overflow:hidden}
+
+/* CRT effects */
+body::before{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9990;
+  background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.15) 2px,rgba(0,0,0,0.15) 4px);
+}
+body::after{
+  content:'';position:fixed;inset:0;pointer-events:none;z-index:9989;
+  background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,0.7) 100%);
+}
+
+/* Scrollbars */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:rgba(0,255,65,0.04)}
+::-webkit-scrollbar-thumb{background:var(--gdim)}
+
+/* Glow */
+.glow{text-shadow:0 0 8px var(--green),0 0 20px rgba(0,255,65,0.5),0 0 40px rgba(0,255,65,0.2)}
+.glow-sm{text-shadow:0 0 6px rgba(0,255,65,0.6)}
+
+/* Blink cursor */
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.cursor{display:inline-block;width:8px;height:1em;background:var(--green);vertical-align:bottom;animation:blink 1s step-end infinite;box-shadow:0 0 6px var(--green)}
+
+/* Box */
+.box{border:1px solid var(--border);box-shadow:0 0 8px rgba(0,255,65,0.08),inset 0 0 8px rgba(0,255,65,0.03);position:relative}
+.box-hdr{display:flex;align-items:center;gap:6px;color:var(--gdim);font-size:12px;margin-bottom:8px;white-space:nowrap}
+.box-hdr-line{flex:1;height:1px;background:var(--gdim);opacity:.6}
+
+/* ── SCREENS ── */
+.screen{display:none;position:fixed;inset:0;overflow:auto}
+.screen.active{display:flex;flex-direction:column}
+
+/* ── BOOT ── */
+#screen-boot{align-items:center;justify-content:center;padding:32px 16px}
+.boot-title{font-family:var(--vt);font-size:clamp(60px,12vw,110px);letter-spacing:12px;color:var(--green);line-height:1;margin-bottom:20px}
+.boot-log{max-width:600px;width:100%;font-size:13px;color:var(--gdim);line-height:2}
+.boot-bar-wrap{max-width:600px;width:100%;height:2px;background:rgba(0,136,42,.3);margin-top:16px;overflow:hidden}
+.boot-bar{height:100%;background:var(--green);box-shadow:0 0 10px var(--green);width:0%;transition:width .3s}
+
+/* ── CREATE ── */
+#screen-create{align-items:center;justify-content:flex-start;padding:32px 16px;overflow-y:auto}
+.create-box{width:100%;max-width:600px}
+.create-title{font-family:var(--vt);font-size:52px;color:var(--green);letter-spacing:6px;margin-bottom:20px;text-align:center}
+.create-section{margin-bottom:18px}
+.create-label{color:var(--gdim);font-size:11px;letter-spacing:2px;margin-bottom:8px;display:block}
+.era-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+@media(max-width:520px){.era-grid{grid-template-columns:repeat(2,1fr)}}
+.era-btn{font-family:var(--mono);font-size:11px;padding:8px 6px;border:1px solid var(--gdim);background:transparent;color:var(--gdim);cursor:pointer;transition:all .1s;text-align:left}
+.era-btn:hover,.era-btn.sel{border-color:var(--green);color:var(--green);background:rgba(0,255,65,.05);box-shadow:0 0 8px rgba(0,255,65,.1)}
+.era-btn .en{display:block;font-size:12px;color:var(--gbright);margin-bottom:2px}
+.era-btn.sel .en{text-shadow:0 0 6px var(--green)}
+.era-btn .ed{font-size:10px;color:var(--gdim)}
+.field-row{display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid rgba(0,136,42,.2)}
+.field-lbl{color:var(--gdim);font-size:13px;white-space:nowrap;min-width:90px}
+.field-gt{color:var(--green)}
+.field-inp{background:transparent;border:none;outline:none;color:var(--green);font-family:var(--mono);font-size:13px;flex:1;caret-color:var(--green)}
+.field-sel{background:var(--bg);border:none;outline:none;color:var(--green);font-family:var(--mono);font-size:13px;flex:1;cursor:pointer}
+.field-sel option{background:var(--bg2)}
+.attr-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.attr-cell{border:1px solid var(--gdim);padding:8px 4px;text-align:center;cursor:pointer;transition:all .1s}
+.attr-cell:hover{border-color:var(--green);background:rgba(0,255,65,.05)}
+.attr-cell .an{font-size:11px;color:var(--gdim);display:block}
+.attr-cell .av{font-family:var(--vt);font-size:26px;color:var(--green);line-height:1}
+.attr-cell .ab{display:flex;gap:2px;margin-top:4px;justify-content:center}
+.attr-cell .ab span{width:6px;height:6px;background:var(--gdim);display:block}
+.attr-cell .ab span.f{background:var(--green)}
+.btn{font-family:var(--mono);font-size:13px;padding:8px 18px;border:1px solid var(--green);background:transparent;color:var(--gbright);cursor:pointer;transition:all .1s;text-shadow:0 0 6px var(--green);letter-spacing:1px;white-space:nowrap}
+.btn:hover{background:var(--green);color:var(--bg);text-shadow:none;box-shadow:0 0 16px rgba(0,255,65,.5)}
+.btn:disabled{opacity:.3;cursor:not-allowed}
+.btn-dim{border-color:var(--gdim);color:var(--gdim);text-shadow:none}
+.btn-dim:hover{background:var(--gdim);color:var(--bg)}
+.btn-red{border-color:var(--red);color:var(--red);text-shadow:none}
+.btn-red:hover{background:var(--red);color:var(--bg)}
+.btn-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+
+/* ── GAME LAYOUT ── */
+#screen-game{flex-direction:column;height:100vh}
+.topbar{display:flex;align-items:center;gap:12px;padding:6px 10px;border-bottom:1px solid var(--border);background:var(--bg2);flex-shrink:0;flex-wrap:wrap;font-size:12px;min-height:38px}
+.topbar-title{font-family:var(--vt);font-size:24px;color:var(--green);letter-spacing:4px;text-shadow:0 0 10px rgba(0,255,65,.5)}
+.topbar-sep{color:var(--gdim)}
+.topbar-item{color:var(--gdim);cursor:pointer;padding:2px 6px;border:1px solid transparent;transition:all .1s}
+.topbar-item:hover{border-color:var(--gdim);color:var(--green)}
+.topbar-item.active{border-color:var(--green);color:var(--green)}
+.save-indicator{color:var(--gdim);font-size:11px}
+.save-indicator.saved{color:var(--green)}
+.cheat-badge{color:var(--amber);border:1px solid var(--amber);padding:1px 6px;font-size:10px;letter-spacing:1px}
+.spacer{flex:1}
+
+.game-body{display:grid;grid-template-columns:280px 1fr;flex:1;overflow:hidden}
+@media(max-width:700px){.game-body{grid-template-columns:1fr}}
+
+/* Sidebar */
+.sidebar{display:flex;flex-direction:column;overflow-y:auto;border-right:1px solid var(--border);background:var(--bg2)}
+.sb-section{border-bottom:1px solid rgba(0,136,42,.2);padding:10px}
+.sb-name{font-family:var(--vt);font-size:26px;color:var(--gbright);line-height:1;display:block;margin-bottom:4px}
+.sb-meta{font-size:11px;color:var(--gdim);line-height:1.8}
+.sb-meta b{color:var(--gmid)}
+
+/* Attributes */
+.attr-row{display:grid;grid-template-columns:36px 1fr 24px;align-items:center;gap:6px;margin-bottom:6px}
+.attr-name{font-size:11px;color:var(--gdim)}
+.attr-bar-bg{height:5px;background:rgba(0,255,65,.1);border:1px solid rgba(0,255,65,.15)}
+.attr-bar-fill{height:100%;background:var(--green);transition:width .4s;box-shadow:0 0 4px rgba(0,255,65,.4)}
+.attr-val{font-size:11px;color:var(--green);text-align:right}
+
+/* Vitals */
+.vital-row{margin-bottom:8px}
+.vital-lbl{display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px}
+.vital-lbl-name{color:var(--gdim)}
+.vital-lbl-val{color:var(--green)}
+.vital-bar-bg{height:7px;background:rgba(0,255,65,.08);border:1px solid rgba(0,255,65,.15)}
+.vital-bar-fill{height:100%;transition:width .5s;box-shadow:0 0 6px rgba(0,255,65,.4);background:var(--green)}
+.vital-bar-fill.warn{background:var(--amber);box-shadow:0 0 6px rgba(255,179,0,.4)}
+.vital-bar-fill.bad{background:var(--red);box-shadow:0 0 6px rgba(255,59,59,.4)}
+
+/* Finances */
+.fin-row{display:flex;justify-content:space-between;font-size:12px;padding:2px 0;border-bottom:1px solid rgba(0,136,42,.12)}
+.fin-lbl{color:var(--gdim)}
+.fin-val{color:var(--green)}
+.fin-val.pos{color:var(--gbright)}
+.fin-val.neg{color:var(--red)}
+.fin-val.amber{color:var(--amber)}
+
+/* Relationships */
+.npc-card{border:1px solid rgba(0,136,42,.3);padding:7px 8px;margin-bottom:6px;font-size:11px;cursor:pointer;transition:all .1s}
+.npc-card:hover{border-color:var(--gdim)}
+.npc-name{color:var(--gmid);font-size:12px;margin-bottom:2px}
+.npc-meta{color:var(--gdim)}
+
+/* Main area */
+.main-area{display:flex;flex-direction:column;overflow:hidden}
+
+/* Story panel */
+.story-panel{flex:1;overflow-y:auto;padding:14px 16px}
+.story-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.story-period{font-size:11px;color:var(--gdim);letter-spacing:1px}
+.story-turn{font-size:10px;color:rgba(0,136,42,.5)}
+.story-text{font-size:14px;line-height:1.8;color:var(--gmid);white-space:pre-wrap;word-break:break-word}
+.narrator-note{margin-top:12px;padding:10px;border-left:2px solid var(--amber);color:var(--amber);font-size:13px;font-style:italic;background:rgba(255,179,0,.04)}
+.thinking-line{color:var(--gdim);font-size:12px;animation:blink 1s step-end infinite}
+.story-entry{margin-bottom:20px;padding-bottom:16px;border-bottom:1px solid rgba(0,136,42,.12)}
+
+/* Input area */
+.input-area{border-top:1px solid var(--border);padding:12px 14px;background:var(--bg2);flex-shrink:0}
+.input-title{font-size:11px;color:var(--gdim);letter-spacing:2px;margin-bottom:8px}
+.input-row{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.input-prompt{color:var(--green);font-size:16px}
+.text-input{background:transparent;border:none;outline:none;color:var(--green);font-family:var(--mono);font-size:14px;flex:1;caret-color:var(--green);min-width:0}
+.text-input::placeholder{color:rgba(0,136,42,.5);font-size:12px}
+.input-hint{font-size:10px;color:rgba(0,136,42,.4);margin-bottom:10px}
+.or-choose{font-size:11px;color:var(--gdim);letter-spacing:1px;margin-bottom:8px}
+.choices-row{display:flex;flex-direction:column;gap:5px;margin-bottom:10px}
+.choice-btn{width:100%;text-align:left;font-family:var(--mono);font-size:12px;padding:7px 12px;border:1px solid rgba(0,136,42,.4);background:transparent;color:rgba(0,136,42,.8);cursor:pointer;transition:all .1s;line-height:1.4}
+.choice-btn:hover{border-color:var(--green);color:var(--green);background:rgba(0,255,65,.05);padding-left:18px}
+.choice-key{color:var(--green);margin-right:8px}
+.cheat-toggle{font-size:11px;color:var(--gdim);cursor:pointer;padding:3px 0;display:flex;align-items:center;gap:6px;border:none;background:none;font-family:var(--mono)}
+.cheat-toggle:hover{color:var(--amber)}
+.cheat-panel{display:none;margin-top:8px;padding:10px;border:1px solid rgba(255,179,0,.3);background:rgba(255,179,0,.03);font-size:11px;color:var(--amber);line-height:2;max-height:180px;overflow-y:auto}
+.cheat-panel.open{display:block}
+.cheat-panel code{color:var(--gbright);background:rgba(0,255,65,.08);padding:1px 4px}
+
+/* ── MODAL ── */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9000;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{width:100%;max-width:460px;padding:20px;background:var(--bg2);border:1px solid var(--gdim);margin:16px;max-height:90vh;overflow-y:auto}
+.modal h2{font-family:var(--vt);font-size:30px;letter-spacing:4px;margin-bottom:16px;color:var(--green)}
+.modal-field{margin-bottom:14px}
+.modal-lbl{font-size:11px;color:var(--gdim);letter-spacing:1px;display:block;margin-bottom:6px}
+.modal-inp{width:100%;background:var(--bg);border:1px solid var(--gdim);color:var(--green);font-family:var(--mono);font-size:13px;padding:6px 10px;outline:none}
+.modal-inp:focus{border-color:var(--green)}
+.modal-select{width:100%;background:var(--bg);border:1px solid var(--gdim);color:var(--green);font-family:var(--mono);font-size:13px;padding:6px 10px;outline:none;cursor:pointer}
+.modal-select option{background:var(--bg2)}
+.modal-info{font-size:11px;color:var(--gdim);margin-top:6px;line-height:1.6}
+
+/* ── DEATH SCREEN ── */
+#screen-death{align-items:center;justify-content:center;padding:32px 16px;overflow-y:auto}
+.death-box{width:100%;max-width:540px}
+.death-title{font-family:var(--vt);font-size:60px;letter-spacing:6px;color:var(--gdim);margin-bottom:16px}
+.obit-text{font-size:14px;line-height:1.9;color:var(--gmid);margin-bottom:20px}
+.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:20px}
+.stat-cell{border:1px solid var(--gdim);padding:10px}
+.stat-cell .sc-lbl{font-size:10px;color:var(--gdim);letter-spacing:1px;margin-bottom:4px}
+.stat-cell .sc-val{font-family:var(--vt);font-size:30px;color:var(--green)}
+
+/* Notification */
+.notif{position:fixed;bottom:20px;right:20px;background:var(--bg);border:1px solid var(--green);color:var(--green);font-family:var(--mono);font-size:12px;padding:8px 14px;z-index:9999;max-width:280px;animation:nsin .2s ease,nsfade .4s ease 2.6s forwards;box-shadow:0 0 14px rgba(0,255,65,.2)}
+.notif.warn{border-color:var(--amber);color:var(--amber)}
+.notif.danger{border-color:var(--red);color:var(--red)}
+.notif.info{border-color:var(--blue);color:var(--blue)}
+@keyframes nsin{from{transform:translateX(40px);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes nsfade{to{opacity:0}}
+
+/* Attr points remaining */
+.attr-pts{font-size:12px;color:var(--amber);margin-bottom:8px}
+</style>
+</head>
+<body>
+
+<!-- ═══ BOOT ═══ -->
+<div id="screen-boot" class="screen active">
+  <div class="boot-title glow" id="boot-logo">LIFESPANS</div>
+  <div class="boot-log" id="boot-log"></div>
+  <div class="boot-bar-wrap"><div class="boot-bar" id="boot-bar"></div></div>
+</div>
+
+<!-- ═══ CREATE ═══ -->
+<div id="screen-create" class="screen">
+<div class="create-box box" style="padding:24px;">
+  <div class="box-hdr"><span>╔══</span><span>NEW LIFE — CONFIGURATION</span><div class="box-hdr-line"></div></div>
+
+  <div class="create-section">
+    <span class="create-label">▸ IDENTITY</span>
+    <div class="field-row"><span class="field-lbl">NAME:</span><span class="field-gt">&gt;</span><input id="c-name" class="field-inp" type="text" placeholder="leave blank for random" autocomplete="off" spellcheck="false"/></div>
+    <div class="field-row"><span class="field-lbl">GENDER:</span><span class="field-gt">&gt;</span><select id="c-gender" class="field-sel"><option value="random">RANDOM</option><option value="male">MALE</option><option value="female">FEMALE</option><option value="nonbinary">NON-BINARY</option></select></div>
+  </div>
+
+  <div class="create-section">
+    <span class="create-label">▸ ERA</span>
+    <div class="era-grid" id="era-grid">
+      <button class="era-btn sel" data-era="ancient"><span class="en">⚔ ANCIENT</span><span class="ed">3000 BCE – 500 CE</span></button>
+      <button class="era-btn" data-era="medieval"><span class="en">🏰 MEDIEVAL</span><span class="ed">500 – 1500 CE</span></button>
+      <button class="era-btn" data-era="renaissance"><span class="en">🎨 RENAISSANCE</span><span class="ed">1400 – 1700 CE</span></button>
+      <button class="era-btn" data-era="industrial"><span class="en">⚙ INDUSTRIAL</span><span class="ed">1750 – 1920</span></button>
+      <button class="era-btn" data-era="modern"><span class="en">🌐 MODERN</span><span class="ed">1950 – 2010</span></button>
+      <button class="era-btn" data-era="contemporary"><span class="en">📱 CONTEMPORARY</span><span class="ed">2010 – 2025</span></button>
+      <button class="era-btn" data-era="future"><span class="en">🚀 NEAR FUTURE</span><span class="ed">2040 – 2080</span></button>
+    </div>
+  </div>
+
+  <div class="create-section">
+    <span class="create-label">▸ BACKGROUND</span>
+    <div class="field-row"><span class="field-lbl">REGION:</span><span class="field-gt">&gt;</span><select id="c-region" class="field-sel"><option value="random">RANDOM</option><option value="Europe">EUROPE</option><option value="North America">NORTH AMERICA</option><option value="South America">SOUTH AMERICA</option><option value="East Asia">EAST ASIA</option><option value="South Asia">SOUTH ASIA</option><option value="Middle East">MIDDLE EAST</option><option value="Africa">AFRICA</option><option value="Oceania">OCEANIA</option></select></div>
+    <div class="field-row"><span class="field-lbl">CLASS:</span><span class="field-gt">&gt;</span><select id="c-bg" class="field-sel"><option value="destitute">DESTITUTE</option><option value="poor">POOR</option><option value="working">WORKING CLASS</option><option value="middle" selected>MIDDLE CLASS</option><option value="wealthy">WEALTHY</option><option value="nobility">NOBILITY / ELITE</option></select></div>
+    <div class="field-row"><span class="field-lbl">NARRATOR:</span><span class="field-gt">&gt;</span><select id="c-tone" class="field-sel"><option value="literary">LITERARY</option><option value="brutal">BRUTAL / RAW</option><option value="cinematic">CINEMATIC</option><option value="poetic">POETIC</option><option value="minimal">MINIMAL</option><option value="comedic">COMEDIC</option></select></div>
+  </div>
+
+  <div class="create-section">
+    <span class="create-label">▸ ATTRIBUTES <span id="pts-remaining" class="attr-pts">(27 points to distribute)</span></span>
+    <div class="attr-grid" id="attr-grid">
+      <!-- generated by JS -->
+    </div>
+  </div>
+
+  <div class="create-section">
+    <span class="create-label">▸ AI NARRATOR (OPTIONAL)</span>
+    <div class="field-row"><span class="field-lbl">API KEY:</span><span class="field-gt">&gt;</span><input id="c-apikey" class="field-inp" type="password" placeholder="sk-... (OpenAI key, saved locally)" autocomplete="off"/></div>
+    <div style="font-size:10px;color:var(--gdim);margin-top:4px;padding-left:98px;">Without a key, the game uses a built-in story engine. Your key is stored only in your browser.</div>
+  </div>
+
+  <div class="btn-row">
+    <button class="btn" id="btn-start">[BEGIN LIFE]</button>
+    <button class="btn btn-dim" id="btn-random">[RANDOMIZE]</button>
+    <button class="btn btn-dim" id="btn-load-save" style="display:none">[RESUME SAVE]</button>
+  </div>
+  <div style="height:20px"></div>
+</div>
+</div>
+
+<!-- ═══ GAME ═══ -->
+<div id="screen-game" class="screen">
+
+  <!-- Top bar -->
+  <div class="topbar">
+    <span class="topbar-title">LIFESPANS</span>
+    <span class="topbar-sep">·</span>
+    <span style="font-size:11px;color:var(--gdim)">TERMINAL v5.6</span>
+    <span class="spacer"></span>
+    <span id="cheat-badge" class="cheat-badge" style="display:none">⚠ CHEAT RUN</span>
+    <span id="immortal-badge" class="cheat-badge" style="display:none;border-color:var(--blue);color:var(--blue)">∞ IMMORTAL</span>
+    <span class="save-indicator" id="save-indicator">● SAVED</span>
+    <span class="topbar-item" id="btn-tone-topbar" title="Narrator Tone">📖 <span id="tone-label">LITERARY</span></span>
+    <span class="topbar-item" id="btn-settings-open">⚙ SETTINGS</span>
+    <span class="topbar-item btn-dim" id="btn-new-life-top" style="font-size:11px">[NEW LIFE]</span>
+  </div>
+
+  <!-- Body -->
+  <div class="game-body">
+
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+
+      <!-- Identity -->
+      <div class="sb-section">
+        <div class="box-hdr"><span style="font-size:10px;color:var(--gdim)">╔ IDENTITY</span><div class="box-hdr-line"></div></div>
+        <span class="sb-name" id="sb-name">—</span>
+        <div class="sb-meta" id="sb-meta">—</div>
+      </div>
+
+      <!-- Attributes -->
+      <div class="sb-section">
+        <div class="box-hdr"><span style="font-size:10px;color:var(--gdim)">╔ ATTRIBUTES</span><div class="box-hdr-line"></div></div>
+        <div id="attr-display">
+          <!-- STR DEX CON INT WIS CHA -->
+        </div>
+      </div>
+
+      <!-- Vitals -->
+      <div class="sb-section">
+        <div class="box-hdr"><span style="font-size:10px;color:var(--gdim)">╔ VITALS</span><div class="box-hdr-line"></div></div>
+        <div class="vital-row">
+          <div class="vital-lbl"><span class="vital-lbl-name">HEALTH</span><span class="vital-lbl-val" id="vit-health-num">—</span></div>
+          <div class="vital-bar-bg"><div class="vital-bar-fill" id="vit-health" style="width:0%"></div></div>
+        </div>
+        <div class="vital-row">
+          <div class="vital-lbl"><span class="vital-lbl-name">HAPPINESS</span><span class="vital-lbl-val" id="vit-happy-num">—</span></div>
+          <div class="vital-bar-bg"><div class="vital-bar-fill" id="vit-happy" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <!-- Finances -->
+      <div class="sb-section">
+        <div class="box-hdr"><span style="font-size:10px;color:var(--gdim)">╔ FINANCES</span><div class="box-hdr-line"></div></div>
+        <div class="fin-row"><span class="fin-lbl">BALANCE</span><span class="fin-val" id="fin-balance">—</span></div>
+        <div class="fin-row"><span class="fin-lbl">INCOME /mo</span><span class="fin-val pos" id="fin-income">—</span></div>
+        <div class="fin-row"><span class="fin-lbl">EXPENSES /mo</span><span class="fin-val neg" id="fin-expenses">—</span></div>
+        <div class="fin-row"><span class="fin-lbl">SALARY /yr</span><span class="fin-val amber" id="fin-salary">—</span></div>
+        <div class="fin-row" style="border:none"><span class="fin-lbl">NET /mo</span><span class="fin-val" id="fin-net">—</span></div>
+      </div>
+
+      <!-- Relationships -->
+      <div class="sb-section" style="border-bottom:none;flex:1">
+        <div class="box-hdr"><span style="font-size:10px;color:var(--gdim)">╔ RELATIONSHIPS</span><div class="box-hdr-line"></div></div>
+        <div id="npc-list"><div style="font-size:11px;color:rgba(0,136,42,.4)">None yet.</div></div>
+      </div>
+
+    </div><!-- /sidebar -->
+
+    <!-- MAIN AREA -->
+    <div class="main-area">
+
+      <!-- Story -->
+      <div class="story-panel" id="story-panel">
+        <!-- Story entries appended here -->
+      </div>
+
+      <!-- Input -->
+      <div class="input-area">
+        <div class="input-title">▸ WHAT DO YOU DO?</div>
+        <div class="input-row">
+          <span class="input-prompt">&gt;</span>
+          <input id="action-input" class="text-input" type="text" placeholder="Type action... use (parentheses) to talk to the narrator" autocomplete="off" spellcheck="false"/>
+          <button class="btn" id="btn-go" style="font-size:12px;padding:6px 14px">[GO]</button>
+        </div>
+        <div class="input-hint">Press Enter or [GO] · A / B / C keys for choices</div>
+        <div class="or-choose" id="or-choose-lbl" style="display:none">OR CHOOSE:</div>
+        <div class="choices-row" id="choices-row"></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+          <button class="cheat-toggle" id="cheat-toggle">▸ CHEAT CODES</button>
+        </div>
+        <div class="cheat-panel" id="cheat-panel">
+          <div style="color:var(--amber);margin-bottom:6px;font-size:10px;letter-spacing:1px">⚠ YOUR CHARACTER WILL BE FLAGGED AS A CHEAT RUN</div>
+          <code>/skip</code> — Auto-success on next action<br>
+          <code>/roll20</code> — Force natural 20<br>
+          <code>/roll1</code> — Force natural 1<br>
+          <code>/wealth [amount]</code> — Set bank balance<br>
+          <code>/stat [stat] [value]</code> — Set stat (str/dex/con/int/wis/cha)<br>
+          <code>/stats str=20 cha=18</code> — Set multiple stats<br>
+          <code>/salary [amount]</code> — Lock salary · <code>/salary unlock</code><br>
+          <code>/npc add Name, relation, age, desc</code><br>
+          <code>/npc remove Name</code> · <code>/npc delete Name</code><br>
+          <code>/max</code> — Max health, happiness, $10M<br>
+          <code>/immortal</code> — Toggle immortality<br>
+          <code>/die [reason]</code> — End your story<br>
+        </div>
+      </div><!-- /input-area -->
+
+    </div><!-- /main-area -->
+  </div><!-- /game-body -->
+</div><!-- /screen-game -->
+
+<!-- ═══ DEATH ═══ -->
+<div id="screen-death" class="screen">
+  <div class="death-box box" style="padding:24px;">
+    <div class="box-hdr"><span>╔══</span><span>OBITUARY</span><div class="box-hdr-line"></div></div>
+    <div class="death-title" id="death-title">YOU HAVE DIED</div>
+    <div class="obit-text" id="obit-text">—</div>
+    <div class="stat-grid">
+      <div class="stat-cell"><div class="sc-lbl">AGE AT DEATH</div><div class="sc-val" id="d-age">—</div></div>
+      <div class="stat-cell"><div class="sc-lbl">FINAL HEALTH</div><div class="sc-val" id="d-health">—</div></div>
+      <div class="stat-cell"><div class="sc-lbl">PEAK HAPPINESS</div><div class="sc-val" id="d-happy">—</div></div>
+      <div class="stat-cell"><div class="sc-lbl">TURNS PLAYED</div><div class="sc-val" id="d-turns">—</div></div>
+    </div>
+    <div class="obit-text" id="d-legacy" style="color:var(--gdim);font-size:13px;"></div>
+    <div class="btn-row">
+      <button class="btn" id="btn-play-again">[LIVE AGAIN]</button>
+      <button class="btn btn-dim" id="btn-death-new">[NEW LIFE]</button>
+    </div>
+    <div style="height:12px"></div>
+  </div>
+</div>
+
+<!-- ═══ SETTINGS MODAL ═══ -->
+<div class="modal-overlay" id="modal-settings">
+  <div class="modal">
+    <h2>⚙ SETTINGS</h2>
+    <div class="modal-field">
+      <label class="modal-lbl">OPENAI API KEY</label>
+      <input id="set-apikey" class="modal-inp" type="password" placeholder="sk-..." autocomplete="off"/>
+      <div class="modal-info">Enables AI-generated stories. Your key is stored only in your browser (localStorage). Get a key at <span style="color:var(--green)">platform.openai.com</span></div>
+    </div>
+    <div class="modal-field">
+      <label class="modal-lbl">AI MODEL</label>
+      <select id="set-model" class="modal-select">
+        <option value="gpt-4o-mini">gpt-4o-mini (fast, cheap)</option>
+        <option value="gpt-4o">gpt-4o (smarter, slower)</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label class="modal-lbl">NARRATOR TONE</label>
+      <select id="set-tone" class="modal-select">
+        <option value="literary">LITERARY — rich, literary prose</option>
+        <option value="brutal">BRUTAL — raw, unflinching honesty</option>
+        <option value="cinematic">CINEMATIC — action-movie pacing</option>
+        <option value="poetic">POETIC — lyrical and introspective</option>
+        <option value="minimal">MINIMAL — sparse, factual reporting</option>
+        <option value="comedic">COMEDIC — darkly funny</option>
+      </select>
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="btn-save-settings">[SAVE]</button>
+      <button class="btn btn-dim" id="btn-close-settings">[CANCEL]</button>
+      <button class="btn btn-red" id="btn-wipe-save" style="margin-left:auto">[WIPE SAVE]</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   LIFESPANS TERMINAL v5.6 — Full Game Engine
+   GitHub-deployable single file. No build step required.
+   AI narrator via OpenAI API (optional — falls back to local engine).
+═══════════════════════════════════════════════════════════════ */
+
+// ─── CONSTANTS ────────────────────────────────────────────────
+const SAVE_KEY = 'lifespans_v56_save';
+const SAVE_VER = '5.6';
+
+const ERA_DATA = {
+  ancient:      { label:'ANCIENT',       years:[-500,500],   currency:'gold',    currSym:'₲'},
+  medieval:     { label:'MEDIEVAL',      years:[900,1400],   currency:'silver',  currSym:'⌀'},
+  renaissance:  { label:'RENAISSANCE',   years:[1400,1700],  currency:'ducats',  currSym:'ɗ'},
+  industrial:   { label:'INDUSTRIAL',    years:[1780,1920],  currency:'dollars', currSym:'$'},
+  modern:       { label:'MODERN',        years:[1950,2010],  currency:'dollars', currSym:'$'},
+  contemporary: { label:'CONTEMPORARY',  years:[2010,2025],  currency:'dollars', currSym:'$'},
+  future:       { label:'FUTURE',        years:[2045,2080],  currency:'credits', currSym:'©'},
+};
+
+const BG_STATS = {
+  destitute:{ health:55, happy:45, balance:20,   income:60,   expenses:55,  salary:720,   attrs:[10,10,11,9,10,9] },
+  poor:     { health:62, happy:52, balance:150,  income:200,  expenses:180, salary:2400,  attrs:[11,10,10,10,10,10] },
+  working:  { health:70, happy:60, balance:800,  income:400,  expenses:300, salary:4800,  attrs:[11,11,11,10,10,10] },
+  middle:   { health:76, happy:65, balance:5000, income:600,  expenses:400, salary:7200,  attrs:[10,10,10,12,11,11] },
+  wealthy:  { health:80, happy:70, balance:50000,income:2000, expenses:900, salary:24000, attrs:[10,10,10,13,12,13] },
+  nobility: { health:80, happy:72, balance:200000,income:5000,expenses:2000,salary:60000,attrs:[10,10,10,13,13,14] },
+};
+
+const MALE_NAMES = {
+  ancient:['Marcus','Julius','Gaius','Ramses','Darius','Leonidas','Achilles','Ptolemy'],
+  medieval:['Edmund','William','Henry','Richard','Geoffrey','Sigurd','Bjorn','Aldric'],
+  renaissance:['Leonardo','Raffaelo','Giovanni','Francesco','Cosimo','Matteo','Lorenzo'],
+  industrial:['Albert','Charles','Frederick','Arthur','Samuel','Josiah','Cornelius'],
+  modern:['James','Robert','David','Michael','Thomas','Kevin','Brian','Daniel'],
+  contemporary:['Liam','Noah','Ethan','Mason','Logan','Lucas','Aiden','Jackson'],
+  future:['Zephyr','Orion','Cael','Dex','Ryker','Solus','Echo','Vex'],
+};
+const FEMALE_NAMES = {
+  ancient:['Livia','Isis','Nefertiti','Cleopatra','Helena','Lydia','Cassandra','Dido'],
+  medieval:['Eleanor','Matilda','Isabella','Beatrice','Margaret','Agnes','Hildegard','Maud'],
+  renaissance:['Lucrezia','Isabella','Caterina','Beatrice','Ginevra','Fiammetta','Chiara'],
+  industrial:['Victoria','Florence','Ada','Charlotte','Emmeline','Harriet','Edith','Mabel'],
+  modern:['Mary','Patricia','Linda','Barbara','Susan','Karen','Donna','Carol','Sandra'],
+  contemporary:['Emma','Olivia','Ava','Sophia','Isabella','Mia','Harper','Evelyn','Aria'],
+  future:['Nova','Lyra','Zara','Cyan','Iris','Vela','Ara','Flux','Sable','Riven'],
+};
+const SURNAMES = {
+  ancient:['of Rome','of Alexandria','of Athens','of Carthage','son of Brutus','of Persia'],
+  medieval:['de Montfort','Blackwood','of York','Ashford','Ironside','FitzRoy'],
+  renaissance:['da Vinci','de\' Medici','Foscari','Grimani','Barbarigo','Sforza'],
+  industrial:['Blackwell','Whitmore','Hartley','Pemberton','Ashworth','Grayson'],
+  modern:['Johnson','Williams','Brown','Davis','Miller','Wilson','Anderson'],
+  contemporary:['Martinez','Garcia','Rodriguez','Lee','Kim','Patel','Nguyen','Chen'],
+  future:['Voss','Solaris','Kael','Thrace','Vyne','Nox','Strix','Eron'],
+};
+const ERA_LOCATIONS = {
+  ancient:['Roman Empire','Ancient Egypt','Classical Greece','Persia','Han Dynasty China','Phoenicia'],
+  medieval:['Feudal France','Medieval England','Holy Roman Empire','Scandinavia','Moorish Spain'],
+  renaissance:['Republic of Venice','Florence','Milan','Papal States','Holy Roman Empire'],
+  industrial:['Victorian England','France','German States','American Frontier','British India'],
+  modern:['United States','United Kingdom','France','Japan','Brazil','Australia'],
+  contemporary:['United States','United Kingdom','China','India','Brazil','Nigeria','South Korea'],
+  future:['New Shanghai','Orbital Habitat 7','Neo-Berlin','Mars Colony Ares','Flooded Miami Arcology'],
+};
+
+const TONE_STYLES = {
+  literary:'Write in rich, literary prose — evocative, character-driven, with precise emotional detail.',
+  brutal:'Write in raw, unflinching style — honest, direct, no sentimentality. The world is harsh.',
+  cinematic:'Write with cinematic pacing — vivid scenes, sharp dialogue, dramatic tension.',
+  poetic:'Write lyrically — use imagery, metaphor, and introspective rhythm.',
+  minimal:'Write in sparse, factual style — short sentences, no embellishment.',
+  comedic:'Write with dark humor — absurdist observations, dry wit, ironic distance.',
+};
+
+// ─── GAME STATE ───────────────────────────────────────────────
+let G = null;
+let conversationHistory = [];
+
+function freshState(cfg) {
+  const era = cfg.era;
+  const ed = ERA_DATA[era];
+  const birthYear = ed.years[0] + Math.floor(Math.random() * (ed.years[1] - ed.years[0]));
+  const genderR = cfg.gender === 'random' ? (Math.random()<.5?'male':'female') : cfg.gender;
+  const namePool = genderR === 'female' ? (FEMALE_NAMES[era]||FEMALE_NAMES.modern) : (MALE_NAMES[era]||MALE_NAMES.modern);
+  const surnamePool = SURNAMES[era] || SURNAMES.modern;
+  const name = cfg.name.trim() || (pick(namePool) + ' ' + pick(surnamePool));
+  const locPool = ERA_LOCATIONS[era] || ERA_LOCATIONS.modern;
+  const region = cfg.region === 'random' ? pick(locPool) : cfg.region;
+  const bs = BG_STATS[cfg.background] || BG_STATS.middle;
+  const attrs = cfg.attrs || [...bs.attrs];
+
+  return {
+    // Identity
+    name, gender: genderR, era, region,
+    background: cfg.background,
+    birthYear,
+    profession: null,
+
+    // Stats
+    attrs: { str: attrs[0], dex: attrs[1], con: attrs[2], int: attrs[3], wis: attrs[4], cha: attrs[5] },
+    health: bs.health,
+    happiness: bs.happy,
+    peakHappiness: bs.happy,
+
+    // Finances
+    fin: {
+      balance: bs.balance,
+      income: bs.income,
+      expenses: bs.expenses,
+      salary: bs.salary,
+      salaryLocked: false,
+      currency: ed.currSym,
+    },
+
+    // NPCs
+    npcs: [],
+    partner: null,
+    children: 0,
+
+    // Progress
+    month: 0,
+    turn: 0,
+    alive: true,
+    deathCause: '',
+
+    // Flags
+    cheating: false,
+    immortal: false,
+    diceOverride: null, // 'skip' | 20 | 1
+
+    // Settings
+    settings: {
+      narratorTone: cfg.tone || 'literary',
+      apiKey: cfg.apiKey || '',
+      model: cfg.model || 'gpt-4o-mini',
+    },
+  };
+}
+
+// ─── HELPERS ──────────────────────────────────────────────────
+function pick(arr){ return arr[Math.floor(Math.random()*arr.length)] }
+function clamp(v,lo=0,hi=100){ return Math.max(lo,Math.min(hi,v)) }
+function getAge(){ return Math.floor(G.month/12) }
+function getPhase(){
+  const a = getAge();
+  if(a<6)  return 'infant';
+  if(a<13) return 'child';
+  if(a<18) return 'teen';
+  if(a<26) return 'young_adult';
+  if(a<46) return 'adult';
+  if(a<66) return 'middle_aged';
+  if(a<80) return 'senior';
+  return 'elderly';
+}
+function fmtMoney(n, sym){
+  sym = sym || G.fin.currency;
+  const abs = Math.abs(Math.round(n));
+  const s = abs>=1000000 ? (abs/1000000).toFixed(1)+'M' :
+            abs>=1000    ? (abs/1000).toFixed(1)+'k' :
+            abs.toString();
+  return (n<0?'-':'')+sym+s;
+}
+function yearStr(y){ return y<0 ? Math.abs(y)+' BCE' : y+' CE'; }
+function currentYear(){ return G.birthYear + Math.floor(G.month/12); }
+function monthName(){ return ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'][G.month%12]; }
+
+// ─── SAVE / LOAD ──────────────────────────────────────────────
+function saveGame(){
+  if(!G) return;
+  try {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ ver: SAVE_VER, G, conversationHistory }));
+    document.getElementById('save-indicator').textContent = '● SAVED';
+    document.getElementById('save-indicator').className = 'save-indicator saved';
+  } catch(e){}
+}
+
+function loadSave(){
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if(!raw) return false;
+    const data = JSON.parse(raw);
+    if(!data || data.ver !== SAVE_VER) return false;
+    G = data.G;
+    conversationHistory = data.conversationHistory || [];
+    return true;
+  } catch(e){ return false; }
+}
+
+function wipeSave(){
+  localStorage.removeItem(SAVE_KEY);
+  G = null;
+  conversationHistory = [];
+}
+
+// ─── NOTIFICATION ─────────────────────────────────────────────
+function notify(msg, type=''){
+  const el = document.createElement('div');
+  el.className = 'notif '+type;
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(()=>el.remove(), 3200);
+}
+
+// ─── SCREEN MANAGER ───────────────────────────────────────────
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('screen-'+id).classList.add('active');
+}
+
+// ─── BOOT ─────────────────────────────────────────────────────
+function runBoot(){
+  const log = document.getElementById('boot-log');
+  const bar = document.getElementById('boot-bar');
+  const lines = [
+    [0,   'LIFESPANS TERMINAL v5.6'],
+    [100, '────────────────────────────────────────────'],
+    [200, 'INITIALIZING REALITY ENGINE...'],
+    [400, 'LOADING WORLD SIMULATION MATRICES...'],
+    [650, 'CALIBRATING SONDER PROTOCOLS...'],
+    [850, '  [OK] MORTALITY MODULE LOADED'],
+    [1000,'  [OK] DECISION ENGINE READY'],
+    [1150,'  [OK] CONSEQUENCE TRACKER ARMED'],
+    [1300,'  [OK] AI NARRATOR INTERFACE READY'],
+    [1450,'  [OK] TEMPORAL FLOW STABILIZED'],
+    [1550,'────────────────────────────────────────────'],
+    [1750,'SYSTEM READY. PRESS ANY KEY OR CLICK TO CONTINUE'],
+  ];
+  lines.forEach(([d,t],i)=>{
+    setTimeout(()=>{
+      const span = document.createElement('span');
+      span.style.cssText = 'display:block';
+      if(t.includes('[OK]')) span.style.color='var(--green)';
+      else if(t.includes('READY') || t.includes('CONTINUE')){
+        span.style.color='var(--gbright)';
+        span.innerHTML = t+'&nbsp;<span class="cursor"></span>';
+      }
+      span.textContent = span.innerHTML ? undefined : t;
+      if(span.innerHTML) span.textContent = undefined, span.innerHTML = t+(t.includes('CONTINUE')?'&nbsp;<span class="cursor"></span>':'');
+      log.appendChild(span);
+      bar.style.width = ((i+1)/lines.length*100)+'%';
+    }, d);
+  });
+  setTimeout(()=>{
+    const go = ()=>{ removeEventListener('keydown',go); document.removeEventListener('click',go); bootDone(); };
+    addEventListener('keydown',go,{once:true});
+    document.addEventListener('click',go,{once:true});
+  }, 1900);
+}
+
+function bootDone(){
+  if(loadSave()){
+    // Offer resume
+    document.getElementById('btn-load-save').style.display = '';
+    notify('SAVE DATA FOUND — RESUME OR START NEW LIFE');
+  }
+  showScreen('create');
+  initCreateScreen();
+}
+
+// ─── CHARACTER CREATION ───────────────────────────────────────
+let selectedEra = 'ancient';
+let attrPoints = 27;
+const BASE_ATTRS = {str:8,dex:8,con:8,int:8,wis:8,cha:8};
+let buildAttrs = {...BASE_ATTRS};
+
+function initCreateScreen(){
+  document.getElementById('attr-grid').innerHTML = '';
+  buildAttrs = {str:8,dex:8,con:8,int:8,wis:8,cha:8};
+  attrPoints = 27;
+  renderAttrBuilder();
+
+  // Prefill API key from last save
+  const stored = localStorage.getItem('ls_apikey');
+  if(stored) document.getElementById('c-apikey').value = stored;
+  const storedModel = localStorage.getItem('ls_model');
+  if(storedModel) ; // used at creation
+}
+
+function renderAttrBuilder(){
+  const grid = document.getElementById('attr-grid');
+  grid.innerHTML = '';
+  const stats = ['str','dex','con','int','wis','cha'];
+  const labels = {str:'STR',dex:'DEX',con:'CON',int:'INT',wis:'WIS',cha:'CHA'};
+  stats.forEach(s=>{
+    const cell = document.createElement('div');
+    cell.className = 'attr-cell';
+    const bars = Array(20).fill(0).map((_,i)=>`<span class="${i<buildAttrs[s]?'f':''}"></span>`).join('');
+    cell.innerHTML = `<span class="an">${labels[s]}</span><span class="av">${buildAttrs[s]}</span><div class="ab">${bars}</div>`;
+    cell.addEventListener('click', ()=>incrementAttr(s));
+    cell.addEventListener('contextmenu', e=>{ e.preventDefault(); decrementAttr(s); });
+    grid.appendChild(cell);
+  });
+  document.getElementById('pts-remaining').textContent = `(${attrPoints} pts · click +1, right-click -1)`;
+}
+
+function incrementAttr(s){
+  if(attrPoints<=0){ notify('NO POINTS REMAINING','warn'); return; }
+  const cost = buildAttrs[s] < 13 ? 1 : 2;
+  if(attrPoints < cost){ notify('NOT ENOUGH POINTS','warn'); return; }
+  if(buildAttrs[s]>=18){ notify('MAX 18 DURING CREATION','warn'); return; }
+  buildAttrs[s]++; attrPoints -= cost;
+  renderAttrBuilder();
+}
+function decrementAttr(s){
+  if(buildAttrs[s]<=8){ return; }
+  const refund = buildAttrs[s] <= 13 ? 1 : 2;
+  buildAttrs[s]--; attrPoints += refund;
+  renderAttrBuilder();
+}
+
+// Era buttons
+document.getElementById('era-grid').addEventListener('click', e=>{
+  const btn = e.target.closest('.era-btn');
+  if(!btn) return;
+  document.querySelectorAll('.era-btn').forEach(b=>b.classList.remove('sel'));
+  btn.classList.add('sel');
+  selectedEra = btn.dataset.era;
+});
+
+document.getElementById('btn-random').addEventListener('click', ()=>{
+  const eras = Object.keys(ERA_DATA);
+  selectedEra = pick(eras);
+  document.querySelectorAll('.era-btn').forEach(b=>b.classList.toggle('sel',b.dataset.era===selectedEra));
+  document.getElementById('c-gender').value = pick(['male','female','random']);
+  document.getElementById('c-region').value = 'random';
+  const bgs = Object.keys(BG_STATS);
+  document.getElementById('c-bg').value = pick(bgs);
+  document.getElementById('c-tone').value = pick(Object.keys(TONE_STYLES));
+  // Random attrs
+  buildAttrs = {str:8,dex:8,con:8,int:8,wis:8,cha:8};
+  attrPoints = 27;
+  const keys = Object.keys(buildAttrs);
+  let pts = 27;
+  while(pts>0){
+    const k = pick(keys);
+    if(buildAttrs[k]>=15) continue;
+    const cost = buildAttrs[k]<13?1:2;
+    if(pts>=cost){ buildAttrs[k]++; pts-=cost; }
+    else break;
+  }
+  attrPoints = pts;
+  renderAttrBuilder();
+  document.getElementById('c-name').value = '';
+  notify('RANDOMIZED · PRESS [BEGIN LIFE]');
+});
+
+document.getElementById('btn-load-save').addEventListener('click', ()=>{
+  if(!G) return;
+  showScreen('game');
+  fullUIUpdate();
+  // Re-render last story entry
+  restoreStory();
+});
+
+document.getElementById('btn-start').addEventListener('click', ()=>{
+  const cfg = {
+    name:   document.getElementById('c-name').value,
+    gender: document.getElementById('c-gender').value,
+    era:    selectedEra,
+    region: document.getElementById('c-region').value,
+    background: document.getElementById('c-bg').value,
+    tone:   document.getElementById('c-tone').value,
+    apiKey: document.getElementById('c-apikey').value.trim(),
+    model:  'gpt-4o-mini',
+    attrs:  [buildAttrs.str,buildAttrs.dex,buildAttrs.con,buildAttrs.int,buildAttrs.wis,buildAttrs.cha],
+  };
+  // Save API key globally
+  if(cfg.apiKey) localStorage.setItem('ls_apikey', cfg.apiKey);
+
+  G = freshState(cfg);
+  conversationHistory = [];
+  document.getElementById('story-panel').innerHTML = '';
+  showScreen('game');
+  fullUIUpdate();
+  generateNextTurn(null, null);
+});
+
+// ─── UI UPDATES ───────────────────────────────────────────────
+function fullUIUpdate(){
+  if(!G) return;
+  const age = getAge();
+  const yr = currentYear();
+  const ed = ERA_DATA[G.era] || ERA_DATA.modern;
+  const gMap = {male:'♂',female:'♀',nonbinary:'⊕'};
+
+  // Identity
+  document.getElementById('sb-name').textContent = G.name;
+  document.getElementById('sb-meta').innerHTML =
+    `<b>${gMap[G.gender]||'·'} ${age} years old</b><br>${G.region}<br>${ed.label} · ${G.background.toUpperCase()}${G.profession?'<br>'+G.profession.toUpperCase():''}${G.partner?'<br>♥ '+G.partner:''}${G.children>0?'<br>'+G.children+' child'+(G.children>1?'ren':''):''}`;
+
+  // Attributes
+  const attrDisp = document.getElementById('attr-display');
+  attrDisp.innerHTML = '';
+  const al = {str:'STR',dex:'DEX',con:'CON',int:'INT',wis:'WIS',cha:'CHA'};
+  Object.entries(G.attrs).forEach(([k,v])=>{
+    const pct = (v/20*100).toFixed(0);
+    attrDisp.innerHTML += `<div class="attr-row"><span class="attr-name">${al[k]}</span><div class="attr-bar-bg"><div class="attr-bar-fill" style="width:${pct}%"></div></div><span class="attr-val">${v}</span></div>`;
+  });
+
+  // Vitals
+  setVitalBar('vit-health','vit-health-num', G.health);
+  setVitalBar('vit-happy', 'vit-happy-num',  G.happiness);
+
+  // Finances
+  const f = G.fin;
+  document.getElementById('fin-balance').textContent = fmtMoney(f.balance);
+  document.getElementById('fin-income').textContent = fmtMoney(f.income)+'/mo';
+  document.getElementById('fin-expenses').textContent = fmtMoney(f.expenses)+'/mo';
+  document.getElementById('fin-salary').textContent = fmtMoney(f.salary)+'/yr'+(f.salaryLocked?' 🔒':'');
+  const net = f.income - f.expenses;
+  const netEl = document.getElementById('fin-net');
+  netEl.textContent = (net>=0?'+':'')+fmtMoney(net)+'/mo';
+  netEl.className = 'fin-val '+(net>=0?'pos':'neg');
+
+  // NPCs
+  const npcList = document.getElementById('npc-list');
+  if(G.npcs.length===0){
+    npcList.innerHTML = '<div style="font-size:11px;color:rgba(0,136,42,.4)">None yet.</div>';
+  } else {
+    npcList.innerHTML = G.npcs.map(n=>`<div class="npc-card">
+      <div class="npc-name">${n.name}</div>
+      <div class="npc-meta">${n.relation}${n.age?', age '+n.age:''}</div>
+      ${n.desc?`<div class="npc-meta" style="margin-top:2px;font-style:italic">${n.desc}</div>`:''}
+    </div>`).join('');
+  }
+
+  // Badges
+  document.getElementById('cheat-badge').style.display = G.cheating ? '' : 'none';
+  document.getElementById('immortal-badge').style.display = G.immortal ? '' : 'none';
+  document.getElementById('tone-label').textContent = G.settings.narratorTone.toUpperCase();
+}
+
+function setVitalBar(barId, numId, val){
+  const bar = document.getElementById(barId);
+  const num = document.getElementById(numId);
+  bar.style.width = clamp(val)+'%';
+  num.textContent = Math.round(val);
+  bar.className = 'vital-bar-fill';
+  if(val<25) bar.classList.add('bad');
+  else if(val<50) bar.classList.add('warn');
+}
+
+// ─── APPLY STAT CHANGES ───────────────────────────────────────
+function applyStatChanges(sc, ac, fc){
+  if(sc){
+    if(sc.health)    G.health    = clamp(G.health    + sc.health);
+    if(sc.happiness) G.happiness = clamp(G.happiness + sc.happiness);
+    if(G.happiness > G.peakHappiness) G.peakHappiness = G.happiness;
+  }
+  if(ac){
+    Object.keys(ac).forEach(k=>{
+      if(G.attrs[k]!==undefined && ac[k]) G.attrs[k] = clamp(G.attrs[k]+ac[k],1,20);
+    });
+  }
+  if(fc){
+    if(fc.balance !== undefined && fc.balance) G.fin.balance += fc.balance;
+    if(fc.income  !== undefined && fc.income)  G.fin.income  = Math.max(0,G.fin.income+fc.income);
+    if(fc.expenses!== undefined && fc.expenses)G.fin.expenses= Math.max(0,G.fin.expenses+fc.expenses);
+    if(fc.salary  !== undefined && fc.salary && !G.fin.salaryLocked) G.fin.salary = Math.max(0,G.fin.salary+fc.salary);
+  }
+}
+
+function passiveMonthlyTick(){
+  // Income/expenses
+  const monthsThisTurn = 1 + Math.floor(Math.random()*2);
+  G.fin.balance += (G.fin.income - G.fin.expenses) * monthsThisTurn;
+  G.month += monthsThisTurn;
+
+  // Age-related health decline
+  const age = getAge();
+  if(!G.immortal){
+    if(age>70) G.health = clamp(G.health - Math.random()*2.5);
+    else if(age>55) G.health = clamp(G.health - Math.random()*1);
+    else if(age>35) G.health = clamp(G.health - Math.random()*0.4);
+  }
+  // Age NPCs
+  G.npcs.forEach(n=>{ if(n.age) n.age++; });
+  G.turn++;
+}
+
+// ─── DEATH CHECK ──────────────────────────────────────────────
+function checkDeath(){
+  if(G.immortal) return false;
+  const age = getAge();
+  if(G.health<=0){ G.alive=false; G.deathCause='deteriorating health'; return true; }
+  if(age>=100){ G.alive=false; G.deathCause='extreme old age — a rare, remarkable span'; return true; }
+  if(age>=80){
+    const chance=(age-79)*0.04*(1.2-G.health/100);
+    if(Math.random()<chance){ G.alive=false; G.deathCause='old age'; return true; }
+  }
+  return false;
+}
+
+// ─── TYPEWRITER ───────────────────────────────────────────────
+let typeTimer = null;
+function typeText(el, text, speed=14, cb){
+  if(typeTimer) clearTimeout(typeTimer);
+  el.textContent = '';
+  let i=0;
+  function tick(){
+    if(i<text.length){ el.textContent+=text[i++]; typeTimer=setTimeout(tick,speed); }
+    else if(cb) cb();
+  }
+  tick();
+}
+
+// ─── STORY RENDERING ──────────────────────────────────────────
+function appendStoryEntry(storyText, narratorNote){
+  const panel = document.getElementById('story-panel');
+  const entry = document.createElement('div');
+  entry.className = 'story-entry';
+
+  const hdr = document.createElement('div');
+  hdr.className = 'story-header';
+  hdr.innerHTML = `<span class="story-period">${monthName()} ${yearStr(currentYear())} · AGE ${getAge()}</span><span class="story-turn">TURN ${G.turn}</span>`;
+  entry.appendChild(hdr);
+
+  const txt = document.createElement('div');
+  txt.className = 'story-text';
+  entry.appendChild(txt);
+
+  if(narratorNote){
+    const nn = document.createElement('div');
+    nn.className = 'narrator-note';
+    nn.textContent = '[ NARRATOR: ' + narratorNote + ' ]';
+    entry.appendChild(nn);
+  }
+
+  panel.appendChild(entry);
+  panel.scrollTop = panel.scrollHeight;
+
+  return txt;
+}
+
+function restoreStory(){
+  // Called when loading a save — show a brief "continuing..." message
+  const panel = document.getElementById('story-panel');
+  panel.innerHTML = '';
+  const notice = document.createElement('div');
+  notice.style.cssText='color:var(--gdim);font-size:12px;padding:12px;';
+  notice.textContent = '[ SAVE LOADED · CONTINUING YOUR STORY... ]';
+  panel.appendChild(notice);
+  setTimeout(()=>{ generateNextTurn(null,null); }, 600);
+}
+
+// ─── AI SYSTEM ────────────────────────────────────────────────
+function buildSystemPrompt(){
+  const ed = ERA_DATA[G.era]||ERA_DATA.modern;
+  const age = getAge();
+  const yr = currentYear();
+  const tone = G.settings.narratorTone;
+  const toneStyle = TONE_STYLES[tone] || TONE_STYLES.literary;
+  const phase = getPhase();
+  const attrList = Object.entries(G.attrs).map(([k,v])=>`${k.toUpperCase()}:${v}`).join(', ');
+  const npcStr = G.npcs.length ? G.npcs.map(n=>`- ${n.name} (${n.relation}, age ${n.age||'?'}): ${n.desc||''}`).join('\n') : 'None.';
+
+  return `You are the LIFESPANS NARRATOR — the voice of a hyper-realistic, immersive text life simulator.
+GAME: LIFESPANS TERMINAL v5.6
+NARRATOR TONE: ${tone.toUpperCase()} — ${toneStyle}
+
+CHARACTER:
+- Name: ${G.name} (${G.gender})
+- Age: ${age} | Year: ${yearStr(yr)} | Era: ${ed.label}
+- Location: ${G.region}
+- Background: ${G.background.toUpperCase()}
+- Profession: ${G.profession||'none yet'}
+- Life Phase: ${phase.toUpperCase().replace('_',' ')}
+
+ATTRIBUTES (1-20): ${attrList}
+
+VITALS:
+- Health: ${Math.round(G.health)}/100
+- Happiness: ${Math.round(G.happiness)}/100
+
+FINANCES:
+- Balance: ${ed.currSym}${Math.round(G.fin.balance)}
+- Monthly Income: ${ed.currSym}${Math.round(G.fin.income)}
+- Monthly Expenses: ${ed.currSym}${Math.round(G.fin.expenses)}
+- Annual Salary: ${ed.currSym}${Math.round(G.fin.salary)}
+
+ACTIVE RELATIONSHIPS:
+${npcStr}
+
+PARTNER: ${G.partner||'none'} | CHILDREN: ${G.children}
+CHEAT STATUS: ${G.cheating?'FLAGGED AS CHEAT RUN':G.diceOverride?'DICE OVERRIDE ACTIVE':'clean run'}
+${G.diceOverride ? `DICE: ${G.diceOverride==='skip'?'AUTO-SUCCESS':G.diceOverride===20?'FORCED NATURAL 20':'FORCED NATURAL 1'}` : ''}
+
+YOUR TASK:
+Narrate the next period of ${G.name}'s life. Write in second person ("You...").
+Incorporate the player's action if provided. If they used (parentheses), respond as the narrator in narrator_note.
+
+RESPONSE: Return ONLY valid JSON. No text outside the JSON object.
+{
+  "story": "2-4 paragraphs of immersive narrative in ${tone} tone, second person...",
+  "choices": ["A — specific choice text", "B — specific choice text", "C — specific choice text"],
+  "stat_changes": { "health": 0, "happiness": 0 },
+  "attr_changes": { "str": 0, "dex": 0, "con": 0, "int": 0, "wis": 0, "cha": 0 },
+  "finance_changes": { "balance": 0, "income": 0, "expenses": 0, "salary": 0 },
+  "npc_events": [{"action": "add|update|remove", "name": "", "relation": "", "age": 0, "desc": ""}],
+  "profession_update": "",
+  "narrator_note": ""
+}
+
+RULES:
+- Stat/attr/finance deltas are numbers (positive or negative). 0 means no change.
+- Keep financial amounts era-appropriate. Reference currency as "${ed.currency}" in narrative.
+- Historical accuracy for ${ed.label} era.
+- Choices must be meaningfully different — not just the same action rephrased.
+- Reference active NPCs in the story when relevant.
+- React to dice override if present: ${G.diceOverride?`character ${G.diceOverride===1?'critically fails — something goes terribly wrong':'succeeds spectacularly'}`:''}.
+- Don't suggest health drop below 5 in a single turn unless something dramatic happens.
+- profession_update: new profession string if character changes career/role, else "".`;
+}
+
+async function callOpenAI(playerAction, isNarratorTalk){
+  const apiKey = G.settings.apiKey || localStorage.getItem('ls_apikey') || '';
+  if(!apiKey) return null;
+
+  const userMsg = playerAction
+    ? (isNarratorTalk
+        ? `The player speaks to the narrator: "${playerAction.replace(/[()]/g,'')}" — respond in narrator_note, and also generate the normal story + choices.`
+        : `The player's chosen action: "${playerAction}". Continue the story incorporating this action.`)
+    : 'Continue the story to the next period. Generate a new situation and three choices.';
+
+  const messages = [
+    { role:'system', content: buildSystemPrompt() },
+    ...conversationHistory.slice(-10),
+    { role:'user', content: userMsg },
+  ];
+
+  try {
+    const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+apiKey },
+      body: JSON.stringify({
+        model: G.settings.model || 'gpt-4o-mini',
+        messages,
+        max_tokens: 900,
+        temperature: 0.85,
+        response_format: { type: 'json_object' },
+      }),
+    });
+    if(!resp.ok){
+      const err = await resp.json().catch(()=>({}));
+      console.error('OpenAI error:', err);
+      return null;
+    }
+    const data = await resp.json();
+    const content = data.choices?.[0]?.message?.content;
+    if(!content) return null;
+
+    conversationHistory.push({ role:'user', content: userMsg });
+    conversationHistory.push({ role:'assistant', content });
+    if(conversationHistory.length>20) conversationHistory = conversationHistory.slice(-20);
+
+    return JSON.parse(content);
+  } catch(e){
+    console.error('AI error:', e);
+    return null;
+  }
+}
+
+// ─── LOCAL FALLBACK ENGINE ────────────────────────────────────
+const LOCAL_EVENTS = {
+  infant:[
+    { story:"You enter the world in {region}. The year is {year}. Your family is {bg}. The world smells of {era_smell}. Your first breath is a scream into the unknown — and somehow, someone is already there to answer it.",
+      choices:["Cry loudly — demand to be noticed","Observe everything in silence","Fall asleep immediately"],
+      sc:{health:0,happiness:3}, fc:{balance:0} },
+    { story:"Your first months are a blur of hunger, warmth, and sound. Someone sings to you on certain evenings — low and off-key — and something in you organizes itself around that sound forever.",
+      choices:["Reach for your parent's face","Laugh at something that isn't that funny","Sleep through most of it"],
+      sc:{health:2,happiness:4} },
+  ],
+  child:[
+    { story:"You are {age} years old. School — or its equivalent — has entered your life. The challenge isn't learning; it's figuring out who you are when surrounded by other people figuring out the same thing.",
+      choices:["Pour yourself into studying","Befriend as many people as possible","Retreat into a private imaginative world"],
+      sc:{health:0,happiness:2} },
+    { story:"A childhood friend enters your life — {adj} and strangely loyal. The two of you spend your hours in {era_place}, saying everything and nothing.",
+      choices:["Forge a true friendship — commit to it","Keep some distance — protect yourself","Lead them into one adventure after another"],
+      sc:{health:0,happiness:6},npc_hint:'child_friend' },
+    { story:"You fall ill. The fever lasts three days. Those who care for you do not sleep. When it finally breaks, the world looks different — sharper, somehow, and more precious.",
+      choices:["Rest completely and recover","Push through — your body is stubborn","Ask your caretaker to stay close"],
+      sc:{health:-5,happiness:-2} },
+  ],
+  teen:[
+    { story:"You are {age}. Something has shifted — inside and outside. The world has grown larger and more complicated. Questions you ignored as a child are now urgent. You're not sure you have the answers.",
+      choices:["Focus on education and building a future","Throw yourself into social life","Seek adventure — experience over security"],
+      sc:{health:0,happiness:3} },
+    { story:"Your first romantic feeling arrives like weather — unpredicted, inconvenient, completely real. The person is {adj_r}. The timing is {timing}.",
+      choices:["Act on it — say something","Write about it — keep it private for now","Let it pass — there are more important things"],
+      sc:{health:0,happiness:8},npc_hint:'romantic_interest' },
+    { story:"A mentor steps into your life — a teacher, relative, or stranger who sees something in you others have missed. They offer guidance, criticism, and occasionally the truth about what you could become.",
+      choices:["Accept — listen and absorb everything","Engage on your own terms","Decline — you'll figure it out yourself"],
+      sc:{health:0,happiness:4} },
+  ],
+  young_adult:[
+    { story:"You are {age}. The question of what to do with your life has become impossible to avoid. Options present themselves — some practical, some terrifying, some that feel like they belong to someone else's story.",
+      choices:["Pursue higher education — the long path","Enter the workforce immediately","Travel — see the world first"],
+      sc:{health:0,happiness:4} },
+    { story:"You fall in love — or something that feels remarkably like it. {love_complication}. The feeling is real. What you do with it is up to you.",
+      choices:["Pursue it fully — heart before logic","Be cautious — protect yourself from hurt","Walk away — it's too complicated"],
+      sc:{health:0,happiness:10},npc_hint:'partner_candidate' },
+    { story:"A significant opportunity arrives — {opportunity}. There's a catch. Nothing worth having comes without one.",
+      choices:["Take it — fortune favors the bold","Negotiate — seek better terms","Decline — your roots matter more"],
+      sc:{health:0,happiness:2},fc:{balance:500} },
+    { story:"Someone close to you dies. The grief is specific and total. The world doesn't pause for it.",
+      choices:["Grieve fully — let yourself feel it","Pour yourself into work","Be there for others also grieving"],
+      sc:{health:-3,happiness:-10} },
+  ],
+  adult:[
+    { story:"You are {age}. Life has a shape now — career, relationships, the slow accumulation of consequences from decisions you barely remember making. It is heavier than you expected. Also more yours.",
+      choices:["Reassess — make deliberate changes","Stay the course — stability is underrated","Shake everything up — it's not too late"],
+      sc:{health:0,happiness:3} },
+    { story:"A financial crisis arrives — the kind that makes everything else feel theoretical. {fin_crisis}. You have to adapt.",
+      choices:["Cut everything — live austerely","Borrow and bet on recovery","Ask for help — swallow your pride"],
+      sc:{health:-2,happiness:-5},fc:{balance:-2000} },
+    { story:"Your health reminds you that it exists — a persistent sign you've been ignoring. Something is off. You've known it for a while.",
+      choices:["Take it seriously — make changes now","Power through — no time to slow down","Address it gradually — a middle path"],
+      sc:{health:-5,happiness:-2} },
+    { story:"Your professional life reaches a crossroads. The work you've been doing has led somewhere — and now you must decide whether that somewhere is where you want to be.",
+      choices:["Double down — commit to this path","Pivot — use what you know in a new direction","Step back — life is more than work"],
+      sc:{health:0,happiness:4},fc:{income:200} },
+  ],
+  middle_aged:[
+    { story:"You are {age}. Half your life — perhaps more — is behind you. This is not a thought you think so much as a sensation you carry. The mirror confirms it. Your joints have opinions. Your priorities have shifted, or should have.",
+      choices:["Lean into meaning — pursue what matters","Accept the chapter — appreciate what is","Push against it — you're not done yet"],
+      sc:{health:-2,happiness:3} },
+    { story:"A health scare changes things. The doctor's face has a particular quality when they ask you to sit down. It may be serious. It may be nothing. The waiting is its own ordeal.",
+      choices:["Treat it aggressively — every option available","Make lifestyle changes — address root causes","Wait for more information — gather facts first"],
+      sc:{health:-8,happiness:-5},fc:{balance:-3000} },
+    { story:"Your children — or those who came to depend on you — are leaving. The house changes. The silence has texture.",
+      choices:["Let them go fully — their life now","Stay close — call, visit, remain present","Pour yourself into new projects"],
+      sc:{health:0,happiness:-3} },
+  ],
+  senior:[
+    { story:"You have retired — or something has retired on your behalf. The time you have now is vast and strange. The structure of a life built around work has dissolved. You are trying to find what remains.",
+      choices:["Pursue everything you delayed","Rest — you have earned it","Teach and mentor — leave something behind"],
+      sc:{health:2,happiness:5} },
+    { story:"The body is a daily negotiation now. Mornings require patience. Old friends are becoming rare. You manage. Most days.",
+      choices:["Fight it with discipline — exercise, diet, routine","Accept limitations — adjust and continue","Ignore it — you've been fine so far"],
+      sc:{health:-5,happiness:0} },
+    { story:"A grandchild — or the child of someone dear to you — asks you to tell them about your life. You begin to speak and realize the story is longer and stranger than you remembered.",
+      choices:["Tell it fully — the good and the difficult","Keep it light — spare them the weight","Deflect — you're not sure you want to revisit it"],
+      sc:{health:0,happiness:8} },
+  ],
+  elderly:[
+    { story:"You are {age}. Few from your generation remain. The world you grew up in is now historical — the kind of thing young people read about rather than remember. You are among the primary evidence it existed.",
+      choices:["Bear witness — speak while you can","Let it go — it was a different world","Tend to what still matters within reach"],
+      sc:{health:-3,happiness:4} },
+    { story:"There is a particular quality to very old age you hadn't anticipated. Time moves differently. Small kindnesses land with their full weight. You begin to feel something that might be peace.",
+      choices:["Let yourself be fully present","Reach toward those still with you","Attend to what's unfinished"],
+      sc:{health:-3,happiness:6} },
+  ],
+};
+
+const ERA_SMELLS = { ancient:'olive oil and dust', medieval:'hay and woodsmoke', renaissance:'oil paint and beeswax', industrial:'coal smoke and iron', modern:'gasoline and cut grass', contemporary:'coffee and synthetic materials', future:'recycled air and ozone' };
+const ERA_PLACES = { ancient:'the agora and olive groves', medieval:'the fields beyond the village wall', renaissance:'the piazza and cathedral steps', industrial:'the factory district and riverbanks', modern:'parks, arcades, and wherever adults aren\'t looking', contemporary:'rooftops, group chats, and forgotten corners', future:'simulation rooms and pressurized commons' };
+const ADJ_LIST = ['reckless and funny','quietly profound','bold and restless','strange in the best ways','deeply loyal and occasionally infuriating'];
+const LOVE_COMPLICATIONS = ['You didn\'t expect to meet someone here','The timing is difficult but the feeling isn\'t','The attraction is mutual and frightening'];
+const FIN_CRISES = ['The work dried up without warning','An investment you believed in collapsed','Medical costs arrived without mercy','The system changed and left you behind'];
+const OPPORTUNITIES = ['A position that would change your trajectory entirely','An offer that requires leaving everything familiar','A partnership with someone you\'re not sure you trust'];
+const TIMINGS = ['terrible','complicated','frightening','perfect and therefore suspicious'];
+
+function fillTemplate(tpl){
+  const ed = ERA_DATA[G.era]||ERA_DATA.modern;
+  return tpl
+    .replace(/{region}/g, G.region)
+    .replace(/{year}/g, yearStr(currentYear()))
+    .replace(/{bg}/g, G.background)
+    .replace(/{era_smell}/g, ERA_SMELLS[G.era]||'dust and possibility')
+    .replace(/{era_place}/g, ERA_PLACES[G.era]||'the streets')
+    .replace(/{age}/g, getAge())
+    .replace(/{adj}/g, pick(ADJ_LIST))
+    .replace(/{adj_r}/g, pick(ADJ_LIST))
+    .replace(/{love_complication}/g, pick(LOVE_COMPLICATIONS))
+    .replace(/{timing}/g, pick(TIMINGS))
+    .replace(/{fin_crisis}/g, pick(FIN_CRISES))
+    .replace(/{opportunity}/g, pick(OPPORTUNITIES));
+}
+
+let lastLocalIndex = -1;
+function generateLocalStory(playerAction){
+  const phase = getPhase();
+  const pool = LOCAL_EVENTS[phase] || LOCAL_EVENTS.adult;
+  let idx;
+  do { idx = Math.floor(Math.random()*pool.length); } while(pool.length>1 && idx===lastLocalIndex);
+  lastLocalIndex = idx;
+  const ev = pool[idx];
+
+  let story = fillTemplate(ev.story);
+  if(playerAction && playerAction.trim() && !playerAction.startsWith('(')){
+    story = `You decide to ${playerAction.toLowerCase().replace(/[.!?]$/,'')}. ` + story;
+  }
+
+  // NPC events
+  const npc_events = [];
+  if(ev.npc_hint && !G.npcs.find(n=>n.role===ev.npc_hint)){
+    if(ev.npc_hint==='child_friend'){
+      const n = pick(G.gender==='female'?FEMALE_NAMES[G.era]||FEMALE_NAMES.modern:MALE_NAMES[G.era]||MALE_NAMES.modern);
+      npc_events.push({action:'add',name:n,relation:'childhood friend',age:getAge(),desc:'A friend from your early years.'});
+    }
+    if(ev.npc_hint==='romantic_interest'){
+      const pool2 = G.gender==='female'?MALE_NAMES[G.era]||MALE_NAMES.modern:FEMALE_NAMES[G.era]||FEMALE_NAMES.modern;
+      const n = pick(pool2);
+      npc_events.push({action:'add',name:n,relation:'romantic interest',age:getAge()+Math.floor(Math.random()*6-2),desc:'Someone who caught your attention.'});
+    }
+  }
+
+  return {
+    story,
+    choices: ev.choices || ['Continue as normal','Take a different approach','Reflect and pause'],
+    stat_changes: ev.sc || {},
+    attr_changes: {},
+    finance_changes: ev.fc || {},
+    npc_events,
+    profession_update: '',
+    narrator_note: playerAction&&playerAction.startsWith('(')?'You are speaking to me directly. I hear you. The story bends toward the shape of your question.' : '',
+  };
+}
+
+// ─── MAIN TURN GENERATOR ─────────────────────────────────────
+async function generateNextTurn(playerAction, isNarratorTalk){
+  setInputLocked(true);
+  showThinking();
+
+  passiveMonthlyTick();
+  if(checkDeath()){ triggerDeath(); return; }
+  fullUIUpdate();
+
+  let result = null;
+
+  // Try AI
+  const apiKey = G.settings.apiKey || localStorage.getItem('ls_apikey') || '';
+  if(apiKey){
+    result = await callOpenAI(playerAction, isNarratorTalk);
+  }
+
+  // Fallback to local
+  if(!result){
+    result = generateLocalStory(playerAction);
+    if(apiKey) notify('AI unavailable — using built-in engine','warn');
+  }
+
+  // Apply changes
+  applyStatChanges(result.stat_changes, result.attr_changes, result.finance_changes);
+
+  // Apply NPC events
+  if(result.npc_events && Array.isArray(result.npc_events)){
+    result.npc_events.forEach(ev=>{
+      if(ev.action==='add' && !G.npcs.find(n=>n.name===ev.name)){
+        G.npcs.push({name:ev.name,relation:ev.relation,age:ev.age||0,desc:ev.desc||''});
+      } else if(ev.action==='update'){
+        const n = G.npcs.find(n=>n.name===ev.name);
+        if(n){ if(ev.relation)n.relation=ev.relation; if(ev.desc)n.desc=ev.desc; }
+      } else if(ev.action==='remove' || ev.action==='delete'){
+        G.npcs = G.npcs.filter(n=>n.name!==ev.name);
+      }
+    });
+  }
+
+  // Profession update
+  if(result.profession_update && result.profession_update.trim()){
+    G.profession = result.profession_update.trim();
+  }
+
+  // Clear dice override after use
+  if(G.diceOverride) G.diceOverride = null;
+
+  fullUIUpdate();
+
+  // Render story
+  hideThinking();
+  const storyEl = appendStoryEntry(result.story, result.narrator_note);
+  typeText(storyEl, result.story, 16, ()=>{
+    renderChoices(result.choices || []);
+    setInputLocked(false);
+    saveGame();
+  });
+}
+
+// ─── CHOICE RENDERING ─────────────────────────────────────────
+let currentChoices = [];
+
+function renderChoices(choices){
+  currentChoices = choices;
+  const row = document.getElementById('choices-row');
+  const lbl = document.getElementById('or-choose-lbl');
+  row.innerHTML = '';
+  if(!choices || choices.length===0){ lbl.style.display='none'; return; }
+  lbl.style.display = '';
+  const keys = ['A','B','C','D'];
+  choices.forEach((c,i)=>{
+    const btn = document.createElement('button');
+    btn.className = 'choice-btn';
+    btn.innerHTML = `<span class="choice-key">[${keys[i]}]</span> ${c}`;
+    btn.addEventListener('click',()=>onChoiceSelected(c));
+    row.appendChild(btn);
+  });
+}
+
+function onChoiceSelected(choice){
+  document.getElementById('action-input').value = choice;
+  submitAction(choice, false);
+}
+
+// ─── THINKING INDICATOR ───────────────────────────────────────
+function showThinking(){
+  const panel = document.getElementById('story-panel');
+  const el = document.createElement('div');
+  el.id = 'thinking-line';
+  el.className = 'thinking-line';
+  el.textContent = '[ GENERATING STORY... ]';
+  panel.appendChild(el);
+  panel.scrollTop = panel.scrollHeight;
+}
+function hideThinking(){
+  const el = document.getElementById('thinking-line');
+  if(el) el.remove();
+}
+
+// ─── INPUT LOCK ───────────────────────────────────────────────
+function setInputLocked(locked){
+  document.getElementById('btn-go').disabled = locked;
+  document.getElementById('action-input').disabled = locked;
+  document.querySelectorAll('.choice-btn').forEach(b=>b.disabled=locked);
+}
+
+// ─── CHEAT CODE PARSER ────────────────────────────────────────
+function parseCheatCode(input){
+  const t = input.trim();
+  if(!t.startsWith('/')) return false;
+  G.cheating = true;
+  document.getElementById('cheat-badge').style.display='';
+
+  // /skip
+  if(t==='/skip'){ G.diceOverride='skip'; notify('AUTO-SUCCESS ARMED · FLAGGED','warn'); return true; }
+  // /roll20
+  if(t==='/roll20'){ G.diceOverride=20; notify('NATURAL 20 ARMED · FLAGGED','warn'); return true; }
+  // /roll1
+  if(t==='/roll1'){ G.diceOverride=1; notify('NATURAL 1 ARMED · FLAGGED','warn'); return true; }
+  // /max
+  if(t==='/max'){
+    G.health=100; G.happiness=100; G.fin.balance=10000000;
+    fullUIUpdate(); notify('MAX ACTIVATED · $10M · FLAGGED','warn'); return true;
+  }
+  // /immortal
+  if(t==='/immortal'){
+    G.immortal=!G.immortal;
+    document.getElementById('immortal-badge').style.display=G.immortal?'':'none';
+    notify('IMMORTALITY '+(G.immortal?'ENABLED':'DISABLED')+' · FLAGGED','warn'); return true;
+  }
+  // /die [reason]
+  const dieM = t.match(/^\/die(?:\s+(.+))?$/);
+  if(dieM){ G.alive=false; G.deathCause=dieM[1]||'unknown causes — the narrator knows'; triggerDeath(); return true; }
+
+  // /wealth [amount]
+  const wm = t.match(/^\/wealth\s+([\d.]+)$/);
+  if(wm){ G.fin.balance=parseFloat(wm[1]); fullUIUpdate(); notify(`BALANCE SET TO ${fmtMoney(G.fin.balance)} · FLAGGED`,'warn'); return true; }
+
+  // /stat [stat] [value]
+  const sm = t.match(/^\/stat\s+(\w+)\s+(\d+)$/);
+  if(sm){
+    const k=sm[1].toLowerCase(), v=clamp(parseInt(sm[2]),1,20);
+    if(G.attrs[k]!==undefined){ G.attrs[k]=v; fullUIUpdate(); notify(`${k.toUpperCase()} SET TO ${v} · FLAGGED`,'warn'); return true; }
+    if(k==='health'){ G.health=clamp(parseInt(sm[2])); fullUIUpdate(); notify(`HEALTH SET TO ${G.health} · FLAGGED`,'warn'); return true; }
+    if(k==='happiness'){ G.happiness=clamp(parseInt(sm[2])); fullUIUpdate(); notify(`HAPPINESS SET TO ${G.happiness} · FLAGGED`,'warn'); return true; }
+    notify('UNKNOWN STAT: '+sm[1],'danger'); return true;
+  }
+
+  // /stats str=N cha=N ...
+  if(t.startsWith('/stats ')){
+    const pairs = t.slice(7).match(/(\w+)=(\d+)/g);
+    if(pairs){ pairs.forEach(p=>{ const [k,v]=p.split('='); if(G.attrs[k])G.attrs[k]=clamp(parseInt(v),1,20); }); fullUIUpdate(); notify('STATS UPDATED · FLAGGED','warn'); return true; }
+  }
+
+  // /salary [amount|unlock]
+  const salm = t.match(/^\/salary\s+(.+)$/);
+  if(salm){
+    if(salm[1]==='unlock'){ G.fin.salaryLocked=false; notify('SALARY UNLOCKED · FLAGGED','warn'); }
+    else { G.fin.salary=parseFloat(salm[1]); G.fin.salaryLocked=true; G.fin.income=G.fin.salary/12; fullUIUpdate(); notify(`SALARY LOCKED AT ${fmtMoney(G.fin.salary)}/yr · FLAGGED`,'warn'); }
+    return true;
+  }
+
+  // /npc add Name, relation, age, desc
+  const npcAdd = t.match(/^\/npc\s+add\s+(.+)$/);
+  if(npcAdd){
+    const parts = npcAdd[1].split(',').map(p=>p.trim());
+    const [name,rel,ageS,desc] = parts;
+    if(!name){ notify('USAGE: /npc add Name, relation, age, desc','danger'); return true; }
+    G.npcs.push({name,relation:rel||'acquaintance',age:parseInt(ageS)||0,desc:desc||''});
+    fullUIUpdate(); notify(`NPC ADDED: ${name} · FLAGGED`,'warn'); return true;
+  }
+  // /npc remove|delete Name
+  const npcRem = t.match(/^\/npc\s+(remove|delete)\s+(.+)$/);
+  if(npcRem){
+    const name=npcRem[2].trim();
+    G.npcs = G.npcs.filter(n=>n.name.toLowerCase()!==name.toLowerCase());
+    fullUIUpdate(); notify(`NPC REMOVED: ${name} · FLAGGED`,'warn'); return true;
+  }
+
+  notify('UNKNOWN COMMAND: '+t,'danger');
+  return true;
+}
+
+// ─── SUBMIT ACTION ────────────────────────────────────────────
+function submitAction(action, fromInput){
+  if(!G || !G.alive) return;
+  const val = (action||document.getElementById('action-input').value||'').trim();
+  if(!val) { generateNextTurn(null,false); document.getElementById('action-input').value=''; return; }
+
+  // Cheat code?
+  if(val.startsWith('/')){
+    const handled = parseCheatCode(val);
+    if(handled){ document.getElementById('action-input').value=''; saveGame(); return; }
+  }
+
+  // Narrator talk?
+  const isNarrator = val.startsWith('(') && val.endsWith(')');
+
+  document.getElementById('action-input').value='';
+  renderChoices([]);
+  generateNextTurn(val, isNarrator);
+}
+
+// ─── EVENT HANDLERS ───────────────────────────────────────────
+document.getElementById('btn-go').addEventListener('click', ()=>submitAction(null, true));
+document.getElementById('action-input').addEventListener('keydown', e=>{
+  if(e.key==='Enter'){ e.preventDefault(); submitAction(null, true); }
+});
+
+// Keyboard choice shortcuts
+document.addEventListener('keydown', e=>{
+  if(!document.getElementById('screen-game').classList.contains('active')) return;
+  if(document.getElementById('action-input') === document.activeElement) return;
+  const keyMap = {a:0,b:1,c:2,d:3};
+  const idx = keyMap[e.key.toLowerCase()];
+  if(idx!==undefined && currentChoices[idx]){ onChoiceSelected(currentChoices[idx]); }
+});
+
+// Cheat toggle
+document.getElementById('cheat-toggle').addEventListener('click', ()=>{
+  document.getElementById('cheat-panel').classList.toggle('open');
+  document.getElementById('cheat-toggle').textContent = document.getElementById('cheat-panel').classList.contains('open') ? '▾ CHEAT CODES' : '▸ CHEAT CODES';
+});
+
+// New life (top bar)
+document.getElementById('btn-new-life-top').addEventListener('click', ()=>{
+  if(!confirm('Start a new life? Current progress will be overwritten.')) return;
+  wipeSave();
+  conversationHistory=[];
+  showScreen('create');
+  initCreateScreen();
+});
+
+// Tone topbar
+document.getElementById('btn-tone-topbar').addEventListener('click', ()=>{
+  const tones = Object.keys(TONE_STYLES);
+  const idx = tones.indexOf(G.settings.narratorTone);
+  G.settings.narratorTone = tones[(idx+1)%tones.length];
+  document.getElementById('tone-label').textContent = G.settings.narratorTone.toUpperCase();
+  notify('NARRATOR TONE: '+G.settings.narratorTone.toUpperCase());
+  saveGame();
+});
+
+// Settings modal
+document.getElementById('btn-settings-open').addEventListener('click', ()=>{
+  document.getElementById('set-apikey').value = G?.settings?.apiKey || localStorage.getItem('ls_apikey') || '';
+  document.getElementById('set-model').value = G?.settings?.model || 'gpt-4o-mini';
+  document.getElementById('set-tone').value = G?.settings?.narratorTone || 'literary';
+  document.getElementById('modal-settings').classList.add('open');
+});
+document.getElementById('btn-close-settings').addEventListener('click', ()=>document.getElementById('modal-settings').classList.remove('open'));
+document.getElementById('btn-save-settings').addEventListener('click', ()=>{
+  const key = document.getElementById('set-apikey').value.trim();
+  const model = document.getElementById('set-model').value;
+  const tone = document.getElementById('set-tone').value;
+  if(key) localStorage.setItem('ls_apikey', key);
+  if(G){
+    G.settings.apiKey = key;
+    G.settings.model = model;
+    G.settings.narratorTone = tone;
+    document.getElementById('tone-label').textContent = tone.toUpperCase();
+    saveGame();
+  }
+  document.getElementById('modal-settings').classList.remove('open');
+  notify('SETTINGS SAVED');
+});
+document.getElementById('btn-wipe-save').addEventListener('click', ()=>{
+  if(!confirm('Wipe all save data?')) return;
+  wipeSave();
+  document.getElementById('modal-settings').classList.remove('open');
+  showScreen('create');
+  initCreateScreen();
+  notify('SAVE WIPED · NEW LIFE REQUIRED');
+});
+
+// Death screen buttons
+document.getElementById('btn-play-again').addEventListener('click', ()=>{
+  // Same config, new life
+  if(G){
+    const cfg = { name:'', gender:G.gender, era:G.era, region:'random', background:G.background, tone:G.settings.narratorTone, apiKey:G.settings.apiKey, model:G.settings.model, attrs:null };
+    G = freshState(cfg);
+    conversationHistory=[];
+    document.getElementById('story-panel').innerHTML='';
+    showScreen('game');
+    fullUIUpdate();
+    generateNextTurn(null,null);
+  }
+});
+document.getElementById('btn-death-new').addEventListener('click', ()=>{
+  wipeSave();
+  showScreen('create');
+  initCreateScreen();
+});
+
+// ─── DEATH SCREEN ─────────────────────────────────────────────
+function triggerDeath(){
+  setInputLocked(true);
+  const age = getAge();
+  const yr = currentYear();
+  const rating = age>80?'full':age>60?'long':age>40?'meaningful':age>20?'short':'brief';
+
+  document.getElementById('death-title').textContent = G.cheating ? 'YOU HAVE DIED [CHEAT RUN]' : 'YOU HAVE DIED';
+  document.getElementById('obit-text').textContent =
+    `${G.name}, born ${yearStr(G.birthYear)} in ${G.region}, died in ${yearStr(yr)} at the age of ${age}. A ${rating} life. The cause: ${G.deathCause}.`;
+  document.getElementById('d-age').textContent = age;
+  document.getElementById('d-health').textContent = Math.round(G.health);
+  document.getElementById('d-happy').textContent = Math.round(G.peakHappiness);
+  document.getElementById('d-turns').textContent = G.turn;
+
+  const legacy = [];
+  if(G.happiness>70) legacy.push('Those who knew them speak of a particular lightness they carried.');
+  if(G.health>70) legacy.push('Their health held, remarkably, through most of their years.');
+  if(G.fin.balance>100000) legacy.push('They left behind more than they arrived with.');
+  if(G.npcs.length>4) legacy.push('They were surrounded by people who knew them well.');
+  if(G.partner) legacy.push(`They shared their life with ${G.partner}.`);
+  if(G.children>0) legacy.push(`They are survived by ${G.children} ${G.children===1?'child':'children'}.`);
+  if(G.cheating) legacy.push('[This run was flagged as a cheat run.]');
+  if(legacy.length===0) legacy.push('They lived. That is the most honest thing that can be said of anyone.');
+  document.getElementById('d-legacy').textContent = legacy.join(' ');
+
+  wipeSave();
+  showScreen('death');
+}
+
+// ─── INIT ─────────────────────────────────────────────────────
+runBoot();
+</script>
+</body>
+</html>
